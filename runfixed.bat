@@ -1,0 +1,1 @@
+"C:\Program Files (x86)\DOSBox-0.74-3\DOSBox.exe" -c "mount c ." -c "c:" -c "bubblef.exe"

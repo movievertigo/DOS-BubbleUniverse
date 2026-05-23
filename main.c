@@ -56,7 +56,7 @@ uint8_t inb(uint16_t port) {
     return result;
 }
 
-void vsync(void) { while (!(inb(0x3DA) & 0x08)) {} }
+void vsync(void) { while (inb(0x3DA) & 0x08) {} while (!(inb(0x3DA) & 0x08)) {} }
 
 void clearBuffer(uint8_t* buffer, uint32_t value, uint32_t dwordCount) { __asm__ volatile ("rep stosl" : "+D"(buffer), "+c"(dwordCount) : "a"(value) : "memory"); }
 void copyBuffer(uint8_t* src, uint8_t* dst, uint32_t dwordCount) { __asm__ volatile ("rep movsl" : "+D"(dst), "+S"(src),"+c"(dwordCount) : : "memory"); }

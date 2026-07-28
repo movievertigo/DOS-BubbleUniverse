@@ -284,7 +284,7 @@ int main()
     expandSinTable();
     calcLineAddresses();
 
-    bubbleUniverse(screenBuffer, backBuffer);
+    bubbleUniverse();
     // Restore text mode
     setMode(0x03);
 

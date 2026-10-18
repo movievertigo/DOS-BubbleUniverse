@@ -24,6 +24,8 @@
 #define PI 3.1415926535897932384626433832795
 #define SINTABLEPOWER 14
 #define SINTABLEENTRIES (1<<SINTABLEPOWER)
+#define SINTABLEMAXVAL 0x0a2f
+#define SCALETABLEENTRIES (SINTABLEMAXVAL*4+1)
 #define ANG1INC ((int32_t)((CURVESTEP * SINTABLEENTRIES) / 235))
 #define ANG2INC ((int32_t)((CURVESTEP * SINTABLEENTRIES) / (2*PI)))
 #define SCALEMUL ((int32_t)(SCREENHEIGHT*PI/2))
@@ -45,6 +47,11 @@
 #define STRINGIZE(s) STRINGIZE_INTERNAL(s)
 
 int32_t sinTable[SINTABLEENTRIES*3];
+int32_t scaleXTable[SCALETABLEENTRIES];
+int32_t scaleYTable[SCALETABLEENTRIES];
+#define SCALETABLEXCENTRE (scaleXTable+SINTABLEMAXVAL*2)
+#define SCALETABLEYCENTRE (scaleYTable+SINTABLEMAXVAL*2)
+
 
 // Reduce exe size by defining these functions as empty
 // See https://www.delorie.com/djgpp/v2faq/faq8_14.html
@@ -84,6 +91,23 @@ void expandSinTable()
     {
         sinTable[SINTABLEENTRIES*1 + i] = sinTable[i];
         sinTable[SINTABLEENTRIES*2 + i] = sinTable[i];
+    }
+}
+
+void calcScaleTables(int32_t smX, int32_t smY, int32_t xOff, int32_t yOff)
+{
+    int32_t val = xOff - smX * (SINTABLEMAXVAL*2);
+    for (int i = 0; i < SCALETABLEENTRIES; ++i)
+    {
+        scaleXTable[i] = val >> SINTABLEPOWER;
+        val += smX;
+    }
+
+    val = yOff - smY * (SINTABLEMAXVAL*2);
+    for (int i = 0; i < SCALETABLEENTRIES; ++i)
+    {
+        scaleYTable[i] = val >> SINTABLEPOWER;
+        val += smY;
     }
 }
 
@@ -174,8 +198,8 @@ void calcLineAddresses()
 
 void bubbleUniverse()
 {
-    int32_t scaleMul = SCALEMUL<<8;
-    int32_t scaleMulX = (scaleMul*ASPECTMUL)>>8;
+    int32_t scaleMulY = SCALEMUL<<8;
+    int32_t scaleMulX = (scaleMulY*ASPECTMUL)>>8;
     int32_t animSpeed = INITANIMSPEED;
     int32_t oldAnimSpeed = 0;
     int32_t animTime = 0;
@@ -186,15 +210,19 @@ void bubbleUniverse()
     while (1)
     {
         clearBuffer(backBuffer, 0, SCREENBUFFERSIZE/4);
-        if (debug) setPaletteEntry(0, 0, 0, 63);
+        if (debug) setPaletteEntry(0, 0, 32, 32);
 
         int32_t ang1Start = animTime & (SINTABLEENTRIES - 1);
         int32_t ang2Start = animTime & (SINTABLEENTRIES - 1);
 
         int32_t smX = scaleMulX >> 8;
-        int32_t sm = scaleMul >> 8;
+        int32_t smY = scaleMulY >> 8;
         int32_t xOff = (xOffset * smX) + ((SCREENWIDTH >> 1) << SINTABLEPOWER);
-        int32_t yOff = (yOffset * sm) + ((SCREENHEIGHT >> 1) << SINTABLEPOWER);
+        int32_t yOff = (yOffset * smY) + ((SCREENHEIGHT >> 1) << SINTABLEPOWER);
+
+        calcScaleTables(smX, smY, xOff, yOff);
+
+        if (debug) setPaletteEntry(0, 0, 0, 63);
 
         for (int i = 0; i < CURVECOUNT; i += CURVESTEP)
         {
@@ -212,13 +240,10 @@ void bubbleUniverse()
                     "movswl %%bx, %%eax \n" \
                     "sarl $16, %%ebx \n" \
                     "movl %%eax, %[x] \n" \
-                    "imull %[smX], %%eax \n" \
                     "movl %%ebx, %[y] \n" \
-                    "imull %[sm], %%ebx \n" \
-                    "addl %[xOff], %%eax \n" \
-                    "addl %[yOff], %%ebx \n" \
-                    "sarl $" STRINGIZE(SINTABLEPOWER) ", %%eax \n" \
-                    "sarl $" STRINGIZE(SINTABLEPOWER) ", %%ebx \n" \
+\
+                    "movl %c[scaleXTable](, %%eax, 4), %%eax \n" \
+                    "movl %c[scaleYTable](, %%ebx, 4), %%ebx \n" \
  \
                     "cmp $" STRINGIZE(SCREENHEIGHT) ", %%ebx \n" \
                     "jnb 1f \n" \
@@ -234,7 +259,7 @@ void bubbleUniverse()
  
                     : [x]"+r"(x), [y]"+r"(y)
                     : [sinAng1Start]"r"(sinAng1Start), [sinAng2Start]"r"(sinAng2Start),
-                      [smX]"rm"(smX), [sm]"rm"(sm), [xOff]"rm"(xOff), [yOff]"rm"(yOff),
+                      [scaleXTable]"i"(SCALETABLEXCENTRE), [scaleYTable]"i"(SCALETABLEYCENTRE),
                       [col]"q"(col), [lineAddresses]"i"(lineAddresses)
                     : "memory", "cc", "eax", "ebx"
                 );
@@ -247,17 +272,17 @@ void bubbleUniverse()
         animTime += animSpeed;
 
         if (keyState[KEY_ESCAPE]) break;
-        if (keyState[KEY_HOME]) { scaleMul = SCALEMUL<<8; scaleMulX = (scaleMul*ASPECTMUL)>>8; animSpeed = INITANIMSPEED; xOffset = 0; yOffset = 0; }
+        if (keyState[KEY_HOME]) { scaleMulY = SCALEMUL<<8; scaleMulX = (scaleMulY*ASPECTMUL)>>8; animSpeed = INITANIMSPEED; xOffset = 0; yOffset = 0; }
         if (keyState[KEY_MINUS]) animSpeed -= ANIMSPEEDCHANGE;
         if (keyState[KEY_EQUAL]) animSpeed += ANIMSPEEDCHANGE;
-        if (keyState[KEY_RETURN]) { scaleMul = (scaleMul * SCALEINSPEED)>>8; scaleMulX = (scaleMul*ASPECTMUL)>>8; }
-        if (keyState[KEY_BACKSPACE]) { scaleMul = (scaleMul * SCALEOUTSPEED)>>8; scaleMulX = (scaleMul*ASPECTMUL)>>8; }
+        if (keyState[KEY_RETURN]) { scaleMulY = (scaleMulY * SCALEINSPEED)>>8; scaleMulX = (scaleMulY*ASPECTMUL)>>8; }
+        if (keyState[KEY_BACKSPACE]) { scaleMulY = (scaleMulY * SCALEOUTSPEED)>>8; scaleMulX = (scaleMulY*ASPECTMUL)>>8; }
         if (keyState[KEY_SPACE] && !oldSpaceState) { if (animSpeed == 0) { animSpeed = oldAnimSpeed; } else { oldAnimSpeed = animSpeed; animSpeed = 0; } }
         if (keyState[KEY_SLASH] && !oldSlashState) { debug = !debug; setPaletteEntry(0, 0, 0, 0); }
-        if (keyState[KEY_LEFT]) xOffset += MOVESPEED/scaleMul;
-        if (keyState[KEY_RIGHT]) xOffset -= MOVESPEED/scaleMul;
-        if (keyState[KEY_UP]) yOffset += MOVESPEED/scaleMul;
-        if (keyState[KEY_DOWN]) yOffset -= MOVESPEED/scaleMul;
+        if (keyState[KEY_LEFT]) xOffset += MOVESPEED/scaleMulY;
+        if (keyState[KEY_RIGHT]) xOffset -= MOVESPEED/scaleMulY;
+        if (keyState[KEY_UP]) yOffset += MOVESPEED/scaleMulY;
+        if (keyState[KEY_DOWN]) yOffset -= MOVESPEED/scaleMulY;
 
         oldSpaceState = keyState[KEY_SPACE];
         oldSlashState = keyState[KEY_SLASH];

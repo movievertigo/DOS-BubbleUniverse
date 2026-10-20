@@ -97,6 +97,7 @@ void expandSinTable()
     }
 }
 
+__attribute__((optimize("unroll-all-loops")))
 void calcScaleTables(int32_t smX, int32_t smY, int32_t xOff, int32_t yOff)
 {
     int32_t start = (SINTABLEMAXVAL * 2) - xOff / smX;
@@ -249,29 +250,49 @@ void bubbleUniverse()
             int32_t x = 0, y = 0;
             int32_t* sinAng1Start = sinTable + SINTABLEENTRIES + ang1Start;
             int32_t* sinAng2Start = sinTable + SINTABLEENTRIES + ang2Start; 
-            for (int jBase = 0; jBase < ITERATIONS; jBase += (1<<4))
-            {
-                uint32_t col = iCol | (jBase >> 4);
 
-#define JLOOP \
-                    "movl (%[sinAng2Start], %[y], 4), %[y] \n" \
-                    "addl (%[sinAng1Start], %[x], 4), %[y] \n" \
-                    "movswl %w[y], %[x] \n" \
-                    "sarl $16, %[y] \n" \
-                    "movl %c[scaleXTable](, %[x], 4), %%eax \n" \
-                    "addl %c[scaleYTable](, %[y], 4), %%eax \n" \
-                    "movb %b[col], (%%eax) \n" \
+#define JLOOP(PIXA,PIXB) \
+                "movl (%[sinAng2Start], %[y], 4), %[y] \n" \
+                PIXA \
+                "addl (%[sinAng1Start], %[x], 4), %[y] \n" \
+                "movswl %w[y], %[x] \n" \
+                "sarl $16, %[y] \n" \
+                "movl %c[scaleXTable](, %[x], 4), %%eax \n" \
+                "addl %c[scaleYTable](, %[y], 4), %%eax \n" \
+                PIXB
 
-                asm volatile (
-                    JLOOP JLOOP JLOOP JLOOP JLOOP JLOOP JLOOP JLOOP JLOOP JLOOP JLOOP JLOOP JLOOP JLOOP JLOOP JLOOP
- 
-                    : [x]"+r"(x), [y]"+r"(y)
-                    : [sinAng1Start]"r"(sinAng1Start), [sinAng2Start]"r"(sinAng2Start),
-                      [scaleXTable]"i"(SCALETABLEXCENTRE), [scaleYTable]"i"(SCALETABLEYCENTRE),
-                      [col]"q"(col)
-                    : "memory", "cc", "eax"
-                );
-            }
+#define PIX     "movb %b[col], (%%eax) \n"
+#define INCCOL  "incl %[col] \n"
+
+#define JLOOP1  JLOOP("","")
+#define JLOOP2  JLOOP(PIX,"")
+#define JLOOP3  JLOOP(PIX INCCOL,"")
+#define JLOOP4  JLOOP(PIX,PIX)
+
+            asm volatile (
+                JLOOP1 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2
+                JLOOP3 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2
+                JLOOP3 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2
+                JLOOP3 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2
+                JLOOP3 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2
+                JLOOP3 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2
+                JLOOP3 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2
+                JLOOP3 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2
+                JLOOP3 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2
+                JLOOP3 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2
+                JLOOP3 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2
+                JLOOP3 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2
+                JLOOP3 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2
+                JLOOP3 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2
+                JLOOP3 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2
+                JLOOP3 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP4
+
+                : [x]"+r"(x), [y]"+r"(y)
+                : [sinAng1Start]"r"(sinAng1Start), [sinAng2Start]"r"(sinAng2Start),
+                    [scaleXTable]"i"(SCALETABLEXCENTRE), [scaleYTable]"i"(SCALETABLEYCENTRE),
+                    [col]"q"(iCol)
+                : "memory", "cc", "eax"
+            );
 
             ang1Start = (ang1Start + ANG1INC) & (SINTABLEENTRIES - 1);
             ang2Start = (ang2Start + ANG2INC) & (SINTABLEENTRIES - 1);

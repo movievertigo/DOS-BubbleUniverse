@@ -254,13 +254,12 @@ void bubbleUniverse()
                 uint32_t col = iCol | (jBase >> 4);
 
 #define JLOOP \
-                    "movl (%[sinAng1Start], %[x], 4), %%ebx \n" \
-                    "addl (%[sinAng2Start], %[y], 4), %%ebx \n" \
-                    "movswl %%bx, %[x] \n" \
-                    "sarl $16, %%ebx \n" \
+                    "movl (%[sinAng2Start], %[y], 4), %[y] \n" \
+                    "addl (%[sinAng1Start], %[x], 4), %[y] \n" \
+                    "movswl %w[y], %[x] \n" \
+                    "sarl $16, %[y] \n" \
                     "movl %c[scaleXTable](, %[x], 4), %%eax \n" \
-                    "movl %%ebx, %[y] \n" \
-                    "addl %c[scaleYTable](, %%ebx, 4), %%eax \n" \
+                    "addl %c[scaleYTable](, %[y], 4), %%eax \n" \
                     "movb %b[col], (%%eax) \n" \
 
                 asm volatile (
@@ -270,7 +269,7 @@ void bubbleUniverse()
                     : [sinAng1Start]"r"(sinAng1Start), [sinAng2Start]"r"(sinAng2Start),
                       [scaleXTable]"i"(SCALETABLEXCENTRE), [scaleYTable]"i"(SCALETABLEYCENTRE),
                       [col]"q"(col)
-                    : "memory", "cc", "eax", "ebx"
+                    : "memory", "cc", "eax"
                 );
             }
 

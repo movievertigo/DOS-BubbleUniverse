@@ -24,7 +24,7 @@
 #define PI 3.1415926535897932384626433832795
 #define SINTABLEPOWER 14
 #define SINTABLEENTRIES (1<<SINTABLEPOWER)
-#define SINTABLEMAXVAL 0x0a2f
+#define SINTABLEMAXVAL 0x0a30
 #define SCALETABLEENTRIES (SINTABLEMAXVAL*4+1)
 #define ANG1INC ((int32_t)((CURVESTEP * SINTABLEENTRIES) / 235))
 #define ANG2INC ((int32_t)((CURVESTEP * SINTABLEENTRIES) / (2*PI)))
@@ -51,6 +51,9 @@ int32_t scaleXTable[SCALETABLEENTRIES];
 int32_t scaleYTable[SCALETABLEENTRIES];
 #define SCALETABLEXCENTRE (scaleXTable+SINTABLEMAXVAL*2)
 #define SCALETABLEYCENTRE (scaleYTable+SINTABLEMAXVAL*2)
+uint32_t lineAddresses[SCREENHEIGHT];
+uint8_t backBuffer[SCREENBUFFERSIZE*2+1];
+uint8_t* screenBuffer;
 
 
 // Reduce exe size by defining these functions as empty
@@ -72,8 +75,8 @@ uint8_t inb(uint16_t port) {
 
 void vsync(void) { while (inb(0x3DA) & 0x08) {} while (!(inb(0x3DA) & 0x08)) {} }
 
-void clearBuffer(uint8_t* buffer, uint32_t value, uint32_t dwordCount) { __asm__ volatile ("rep stosl" : "+D"(buffer), "+c"(dwordCount) : "a"(value) : "memory"); }
-void copyBuffer(uint8_t* src, uint8_t* dst, uint32_t dwordCount) { __asm__ volatile ("rep movsl" : "+D"(dst), "+S"(src),"+c"(dwordCount) : : "memory"); }
+void clearBuffer(void* buffer, uint32_t value, uint32_t dwordCount) { __asm__ volatile ("rep stosl" : "+D"(buffer), "+c"(dwordCount) : "a"(value) : "memory"); }
+void copyBuffer(void* src, void* dst, uint32_t dwordCount) { __asm__ volatile ("rep movsl" : "+D"(dst), "+S"(src),"+c"(dwordCount) : : "memory"); }
 void setPaletteEntry(uint8_t i, uint8_t r, uint8_t g, uint8_t b) { outb(0x3C8, i); outb(0x3C9, r); outb(0x3C9, g); outb(0x3C9, b); }
 
 void expandSinTable()
@@ -96,19 +99,39 @@ void expandSinTable()
 
 void calcScaleTables(int32_t smX, int32_t smY, int32_t xOff, int32_t yOff)
 {
-    int32_t val = xOff - smX * (SINTABLEMAXVAL*2);
-    for (int i = 0; i < SCALETABLEENTRIES; ++i)
+    int32_t start = (SINTABLEMAXVAL * 2) - xOff / smX;
+    int32_t end = start + (SCREENWIDTH << SINTABLEPOWER) / smX;
+    if (xOff < 0) { start++; }
+    start = start < 0 ? 0 : (start > SCALETABLEENTRIES ? SCALETABLEENTRIES : start);
+    end = end < 0 ? 0 : (end > SCALETABLEENTRIES ? SCALETABLEENTRIES : end);
+
+    clearBuffer(scaleXTable, SCREENBUFFERSIZE, start);
+
+    int32_t val = xOff - smX * (SINTABLEMAXVAL * 2 - start);
+    for (int i = start; i < end; ++i)
     {
         scaleXTable[i] = val >> SINTABLEPOWER;
         val += smX;
     }
 
-    val = yOff - smY * (SINTABLEMAXVAL*2);
-    for (int i = 0; i < SCALETABLEENTRIES; ++i)
+    clearBuffer(scaleXTable + end, SCREENBUFFERSIZE, SCALETABLEENTRIES - end);
+
+    start = (SINTABLEMAXVAL * 2) - yOff / smY;
+    end = start + (SCREENHEIGHT << SINTABLEPOWER) / smY;
+    if (yOff < 0) { start++; }
+    start = start < 0 ? 0 : (start > SCALETABLEENTRIES ? SCALETABLEENTRIES : start);
+    end = end < 0 ? 0 : (end > SCALETABLEENTRIES ? SCALETABLEENTRIES : end);
+
+    clearBuffer(scaleYTable, (uint32_t)backBuffer + SCREENBUFFERSIZE, start);
+
+    val = yOff - smY * (SINTABLEMAXVAL * 2 - start);
+    for (int i = start; i < end; ++i)
     {
-        scaleYTable[i] = val >> SINTABLEPOWER;
+        scaleYTable[i] = lineAddresses[val >> SINTABLEPOWER];
         val += smY;
     }
+
+    clearBuffer(scaleYTable + end, (uint32_t)backBuffer + SCREENBUFFERSIZE, SCALETABLEENTRIES - end);
 }
 
 void setPalette()
@@ -184,15 +207,11 @@ void credits()
     }
 }
 
-uint8_t backBuffer[SCREENBUFFERSIZE];
-uint8_t* lineAddresses[SCREENHEIGHT];
-uint8_t* screenBuffer;
-
 void calcLineAddresses()
 {
     for (int i = 0; i < SCREENHEIGHT; ++i)
     {
-        lineAddresses[i] = backBuffer + i * SCREENWIDTH;
+        lineAddresses[i] = (uint32_t)backBuffer + i * SCREENWIDTH;
     }
 }
 
@@ -237,22 +256,12 @@ void bubbleUniverse()
 #define JLOOP \
                     "movl (%[sinAng1Start], %[x], 4), %%ebx \n" \
                     "addl (%[sinAng2Start], %[y], 4), %%ebx \n" \
-                    "movswl %%bx, %%eax \n" \
+                    "movswl %%bx, %[x] \n" \
                     "sarl $16, %%ebx \n" \
-                    "movl %%eax, %[x] \n" \
+                    "movl %c[scaleXTable](, %[x], 4), %%eax \n" \
                     "movl %%ebx, %[y] \n" \
-\
-                    "movl %c[scaleXTable](, %%eax, 4), %%eax \n" \
-                    "movl %c[scaleYTable](, %%ebx, 4), %%ebx \n" \
- \
-                    "cmp $" STRINGIZE(SCREENHEIGHT) ", %%ebx \n" \
-                    "jnb 1f \n" \
-                    "movl %c[lineAddresses](, %%ebx, 4), %%ebx \n" \
-                    "cmp $" STRINGIZE(SCREENWIDTH) ", %%eax \n" \
-                    "jnb 1f \n" \
-\
-                    "movb %b[col], (%%eax, %%ebx) \n" \
-                    "1: \n" \
+                    "addl %c[scaleYTable](, %%ebx, 4), %%eax \n" \
+                    "movb %b[col], (%%eax) \n" \
 
                 asm volatile (
                     JLOOP JLOOP JLOOP JLOOP JLOOP JLOOP JLOOP JLOOP JLOOP JLOOP JLOOP JLOOP JLOOP JLOOP JLOOP JLOOP
@@ -260,7 +269,7 @@ void bubbleUniverse()
                     : [x]"+r"(x), [y]"+r"(y)
                     : [sinAng1Start]"r"(sinAng1Start), [sinAng2Start]"r"(sinAng2Start),
                       [scaleXTable]"i"(SCALETABLEXCENTRE), [scaleYTable]"i"(SCALETABLEYCENTRE),
-                      [col]"q"(col), [lineAddresses]"i"(lineAddresses)
+                      [col]"q"(col)
                     : "memory", "cc", "eax", "ebx"
                 );
             }

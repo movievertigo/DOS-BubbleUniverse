@@ -49,8 +49,6 @@
 int32_t sinTable[SINTABLEENTRIES*3];
 int32_t scaleXTable[SCALETABLEENTRIES];
 int32_t scaleYTable[SCALETABLEENTRIES];
-#define SCALETABLEXCENTRE (scaleXTable+SINTABLEMAXVAL*2)
-#define SCALETABLEYCENTRE (scaleYTable+SINTABLEMAXVAL*2)
 uint32_t lineAddresses[SCREENHEIGHT];
 uint8_t backBuffer[SCREENBUFFERSIZE*2+1];
 uint8_t* screenBuffer;
@@ -83,8 +81,8 @@ void expandSinTable()
 {
     for (int i = 0; i < SINTABLEENTRIES/4; ++i)
     {
-        sinTable[i] = sinTable[SINTABLEENTRIES/2 - i - 1] = compactsintable[i];
-        sinTable[SINTABLEENTRIES/2 + i] = sinTable[SINTABLEENTRIES - i - 1] = -compactsintable[i];
+        sinTable[i] = sinTable[SINTABLEENTRIES/2 - i - 1] = SINTABLEMAXVAL + compactsintable[i];
+        sinTable[SINTABLEENTRIES/2 + i] = sinTable[SINTABLEENTRIES - i - 1] = SINTABLEMAXVAL -compactsintable[i];
     }
     for (int i = 0; i < SINTABLEENTRIES; ++i)
     {
@@ -250,14 +248,15 @@ void bubbleUniverse()
         {
             uint32_t iCol = i & 0xF0;
             int32_t x = 0, y = 0;
-            int32_t* sinAng1Start = sinTable + SINTABLEENTRIES + ang1Start;
-            int32_t* sinAng2Start = sinTable + SINTABLEENTRIES + ang2Start; 
+            int32_t* sinAng1Start = sinTable + SINTABLEENTRIES - SINTABLEMAXVAL + ang1Start;
+            int32_t* sinAng2Start = sinTable + SINTABLEENTRIES - SINTABLEMAXVAL + ang2Start; 
 
 #define JLOOP(PIXA,PIXB) \
                 "movl (%[sinAng2Start], %[y], 4), %[y] \n" \
                 PIXA \
                 "addl (%[sinAng1Start], %[x], 4), %[y] \n" \
-                "movswl %w[y], %[x] \n" \
+                "movl %[y], %[x] \n" \
+                "andl %[mask], %[x] \n" \
                 "sarl $16, %[y] \n" \
                 "movl %c[scaleXTable](, %[x], 4), %%eax \n" \
                 "addl %c[scaleYTable](, %[y], 4), %%eax \n" \
@@ -291,8 +290,8 @@ void bubbleUniverse()
 
                 : [x]"+r"(x), [y]"+r"(y)
                 : [sinAng1Start]"r"(sinAng1Start), [sinAng2Start]"r"(sinAng2Start),
-                    [scaleXTable]"i"(SCALETABLEXCENTRE), [scaleYTable]"i"(SCALETABLEYCENTRE),
-                    [col]"q"(iCol)
+                    [scaleXTable]"i"(scaleXTable), [scaleYTable]"i"(scaleYTable),
+                    [col]"q"(iCol), [mask]"r"(0xFFFF)
                 : "memory", "cc", "eax"
             );
 

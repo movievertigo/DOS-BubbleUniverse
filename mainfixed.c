@@ -108,11 +108,12 @@ void calcScaleTables(int32_t smX, int32_t smY, int32_t xOff, int32_t yOff)
 
     clearBuffer(scaleXTable, SCREENBUFFERSIZE, start);
 
-    int32_t val = xOff - smX * (SINTABLEMAXVAL * 2 - start);
+    int64_t val = (int64_t)(xOff - smX * (SINTABLEMAXVAL * 2 - start)) << (32 - SINTABLEPOWER);
+    int64_t step = (int64_t)smX << (32 - SINTABLEPOWER);
     for (int i = start; i < end; ++i)
     {
-        scaleXTable[i] = val >> SINTABLEPOWER;
-        val += smX;
+        scaleXTable[i] = val >> 32;
+        val += step;
     }
 
     clearBuffer(scaleXTable + end, SCREENBUFFERSIZE, SCALETABLEENTRIES - end);
@@ -125,11 +126,12 @@ void calcScaleTables(int32_t smX, int32_t smY, int32_t xOff, int32_t yOff)
 
     clearBuffer(scaleYTable, (uint32_t)backBuffer + SCREENBUFFERSIZE, start);
 
-    val = yOff - smY * (SINTABLEMAXVAL * 2 - start);
+    val = (int64_t)(yOff - smY * (SINTABLEMAXVAL * 2 - start)) << (32 - SINTABLEPOWER);
+    step = (int64_t)smY << (32 - SINTABLEPOWER);
     for (int i = start; i < end; ++i)
     {
-        scaleYTable[i] = lineAddresses[val >> SINTABLEPOWER];
-        val += smY;
+        scaleYTable[i] = lineAddresses[val >> 32];
+        val += step;
     }
 
     clearBuffer(scaleYTable + end, (uint32_t)backBuffer + SCREENBUFFERSIZE, SCALETABLEENTRIES - end);

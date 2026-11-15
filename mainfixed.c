@@ -40,17 +40,18 @@
 #define KEY_HOME        0x47
 #define KEY_LEFT        0x4B
 #define KEY_RIGHT       0x4D
+#define KEY_END         0x4F
 #define KEY_UP          0x48
 #define KEY_DOWN        0x50
 
 #define STRINGIZE_INTERNAL(s) #s
 #define STRINGIZE(s) STRINGIZE_INTERNAL(s)
 
-int32_t sinTable[SINTABLEENTRIES*3];
-int32_t scaleXTable[SCALETABLEENTRIES];
-int32_t scaleYTable[SCALETABLEENTRIES];
-uint32_t lineAddresses[SCREENHEIGHT];
-uint8_t backBuffer[SCREENBUFFERSIZE*2+1];
+int32_t sinTable[SINTABLEENTRIES*3] __attribute__((aligned(16)));
+int32_t scaleXTable[SCALETABLEENTRIES] __attribute__((aligned(16)));
+int32_t scaleYTable[SCALETABLEENTRIES] __attribute__((aligned(16)));
+uint32_t lineAddresses[SCREENHEIGHT] __attribute__((aligned(16)));
+uint8_t backBuffer[SCREENBUFFERSIZE*2+1] __attribute__((aligned(16)));
 uint8_t* screenBuffer;
 
 
@@ -246,17 +247,18 @@ void bubbleUniverse()
 
         for (int i = 0; i < CURVECOUNT; i += CURVESTEP)
         {
-            uint32_t iCol = i & 0xF0;
+            uint32_t col = i & 0xF0;
             int32_t x = 0, y = 0;
             int32_t* sinAng1Start = sinTable + SINTABLEENTRIES - SINTABLEMAXVAL + ang1Start;
             int32_t* sinAng2Start = sinTable + SINTABLEENTRIES - SINTABLEMAXVAL + ang2Start; 
+            for (int jBase = 0; jBase < (ITERATIONS >> 4); ++jBase)
+            {
 
 #define JLOOP(PIXA,PIXB) \
                 "movl (%[sinAng2Start], %[y], 4), %[y] \n" \
                 PIXA \
                 "addl (%[sinAng1Start], %[x], 4), %[y] \n" \
-                "movl %[y], %[x] \n" \
-                "andl %[mask], %[x] \n" \
+                "movw %w[y], %w[x] \n" \
                 "sarl $16, %[y] \n" \
                 "movl %c[scaleXTable](, %[x], 4), %%eax \n" \
                 "addl %c[scaleYTable](, %[y], 4), %%eax \n" \
@@ -269,31 +271,17 @@ void bubbleUniverse()
 #define JLOOP2  JLOOP(PIX,"")
 #define JLOOP3  JLOOP(PIX INCCOL,"")
 #define JLOOP4  JLOOP(PIX,PIX)
+#define JLOOP5  JLOOP(PIX,PIX INCCOL)
 
-            asm volatile (
-                JLOOP1 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2
-                JLOOP3 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2
-                JLOOP3 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2
-                JLOOP3 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2
-                JLOOP3 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2
-                JLOOP3 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2
-                JLOOP3 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2
-                JLOOP3 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2
-                JLOOP3 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2
-                JLOOP3 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2
-                JLOOP3 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2
-                JLOOP3 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2
-                JLOOP3 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2
-                JLOOP3 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2
-                JLOOP3 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2
-                JLOOP3 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP4
+                asm volatile (
+                    JLOOP1 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP5
 
-                : [x]"+r"(x), [y]"+r"(y)
-                : [sinAng1Start]"r"(sinAng1Start), [sinAng2Start]"r"(sinAng2Start),
-                    [scaleXTable]"i"(scaleXTable), [scaleYTable]"i"(scaleYTable),
-                    [col]"q"(iCol), [mask]"r"(0xFFFF)
-                : "memory", "cc", "eax"
-            );
+                    : [x]"+r"(x), [y]"+r"(y), [col]"+q"(col)
+                    : [sinAng1Start]"r"(sinAng1Start), [sinAng2Start]"r"(sinAng2Start),
+                      [scaleXTable]"i"(scaleXTable), [scaleYTable]"i"(scaleYTable)
+                    : "memory", "cc", "eax"
+                );
+            }
 
             ang1Start = (ang1Start + ANG1INC) & (SINTABLEENTRIES - 1);
             ang2Start = (ang2Start + ANG2INC) & (SINTABLEENTRIES - 1);
@@ -303,6 +291,7 @@ void bubbleUniverse()
 
         if (keyState[KEY_ESCAPE]) break;
         if (keyState[KEY_HOME]) { scaleMulY = SCALEMUL<<8; scaleMulX = (scaleMulY*ASPECTMUL)>>8; animSpeed = INITANIMSPEED; xOffset = 0; yOffset = 0; }
+        if (keyState[KEY_END]) { scaleMulY = SCALEMUL<<8; scaleMulX = (scaleMulY*ASPECTMUL)>>8; animSpeed = 0; animTime = 0; xOffset = 0; yOffset = 0; }
         if (keyState[KEY_MINUS]) animSpeed -= ANIMSPEEDCHANGE;
         if (keyState[KEY_EQUAL]) animSpeed += ANIMSPEEDCHANGE;
         if (keyState[KEY_RETURN]) { scaleMulY = (scaleMulY * SCALEINSPEED)>>8; scaleMulX = (scaleMulY*ASPECTMUL)>>8; }

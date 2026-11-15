@@ -47,7 +47,7 @@
 #define STRINGIZE_INTERNAL(s) #s
 #define STRINGIZE(s) STRINGIZE_INTERNAL(s)
 
-int32_t sinTable[SINTABLEENTRIES*3] __attribute__((aligned(16)));
+int32_t sinTable[SINTABLEENTRIES+SINTABLEMAXVAL*4] __attribute__((aligned(16)));
 int32_t scaleXTable[SCALETABLEENTRIES] __attribute__((aligned(16)));
 int32_t scaleYTable[SCALETABLEENTRIES] __attribute__((aligned(16)));
 uint32_t lineAddresses[SCREENHEIGHT] __attribute__((aligned(16)));
@@ -89,11 +89,12 @@ void expandSinTable()
     {
         *((int16_t*)(sinTable+i)+1) = *(int16_t*)(sinTable+((i+SINTABLEENTRIES/4)%SINTABLEENTRIES));
     }
-    for (int i = 0; i < SINTABLEENTRIES; ++i)
+    for (int i = SINTABLEENTRIES-1; i >= 0; --i)
     {
-        sinTable[SINTABLEENTRIES*1 + i] = sinTable[i];
-        sinTable[SINTABLEENTRIES*2 + i] = sinTable[i];
+        sinTable[i + SINTABLEMAXVAL] = sinTable[i];
     }
+    copyBuffer(sinTable + SINTABLEENTRIES, sinTable, SINTABLEMAXVAL);
+    copyBuffer(sinTable + SINTABLEMAXVAL, sinTable + SINTABLEENTRIES + SINTABLEMAXVAL, SINTABLEMAXVAL*3);
 }
 
 __attribute__((optimize("unroll-all-loops")))
@@ -249,8 +250,8 @@ void bubbleUniverse()
         {
             uint32_t col = i & 0xF0;
             int32_t x = 0, y = 0;
-            int32_t* sinAng1Start = sinTable + SINTABLEENTRIES - SINTABLEMAXVAL + ang1Start;
-            int32_t* sinAng2Start = sinTable + SINTABLEENTRIES - SINTABLEMAXVAL + ang2Start; 
+            int32_t* sinAng1Start = sinTable + ang1Start;
+            int32_t* sinAng2Start = sinTable + ang2Start; 
             for (int jBase = 0; jBase < (ITERATIONS >> 4); ++jBase)
             {
 

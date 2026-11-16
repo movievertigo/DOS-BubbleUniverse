@@ -82,8 +82,8 @@ void expandSinTable()
 {
     for (int i = 0; i < SINTABLEENTRIES/4; ++i)
     {
-        sinTable[i] = sinTable[SINTABLEENTRIES/2 - i - 1] = SINTABLEMAXVAL + compactsintable[i];
-        sinTable[SINTABLEENTRIES/2 + i] = sinTable[SINTABLEENTRIES - i - 1] = SINTABLEMAXVAL -compactsintable[i];
+        sinTable[i] = sinTable[SINTABLEENTRIES/2 - i - 1] = (SINTABLEMAXVAL + compactsintable[i]) * 4;
+        sinTable[SINTABLEENTRIES/2 + i] = sinTable[SINTABLEENTRIES - i - 1] = (SINTABLEMAXVAL - compactsintable[i]) * 4;
     }
     for (int i = 0; i < SINTABLEENTRIES; ++i)
     {
@@ -256,13 +256,13 @@ void bubbleUniverse()
             {
 
 #define JLOOP(PIXA,PIXB) \
-                "movl (%[sinAng2Start], %[y], 4), %[y] \n" \
+                "movl (%[sinAng2Start], %[y]), %[y] \n" \
                 PIXA \
-                "addl (%[sinAng1Start], %[x], 4), %[y] \n" \
+                "addl (%[sinAng1Start], %[x]), %[y] \n" \
                 "movw %w[y], %w[x] \n" \
-                "sarl $16, %[y] \n" \
-                "movl %c[scaleXTable](, %[x], 4), %%eax \n" \
-                "addl %c[scaleYTable](, %[y], 4), %%eax \n" \
+                "shrl $16, %[y] \n" \
+                "movl %c[scaleXTable](%[x]), %%eax \n" \
+                "addl %c[scaleYTable](%[y]), %%eax \n" \
                 PIXB
 
 #define PIX     "movb %b[col], (%%eax) \n"

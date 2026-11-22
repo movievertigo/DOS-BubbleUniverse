@@ -30,6 +30,8 @@
 #define ANG2INC ((int32_t)((CURVESTEP * SINTABLEENTRIES) / (2*PI)))
 #define SCALEMUL ((int32_t)(SCREENHEIGHT*PI/2))
 
+#define DIRTY 0x01010101
+
 #define KEY_ESCAPE      0x01
 #define KEY_MINUS       0x0C
 #define KEY_EQUAL       0x0D
@@ -97,6 +99,26 @@ void expandSinTable()
     copyBuffer(sinTable + SINTABLEMAXVAL, sinTable + SINTABLEENTRIES + SINTABLEMAXVAL, SINTABLEMAXVAL*3);
 }
 
+//__attribute__((optimize("unroll-all-loops")))
+#define likely(x)   __builtin_expect(!!(x), 1)
+#define unlikely(x) __builtin_expect(!!(x), 0)
+#define MOVEBLOCK(OFFSET) val = *(src+OFFSET); if (unlikely(val)) { if (unlikely(val == DIRTY)) { *(dst+OFFSET) = 0; *(src+OFFSET) = 0; } else { *(dst+OFFSET) = val; *(src+OFFSET) = DIRTY; } }
+void moveScreenBuffer()
+{
+    uint32_t* src = (uint32_t*)backBuffer;
+    uint32_t* end = src + SCREENBUFFERSIZE/4;
+    uint32_t* dst = (uint32_t*)screenBuffer;
+    uint32_t val;
+
+    for (; src < end; src += 16, dst += 16)
+    {
+        MOVEBLOCK(0x0); MOVEBLOCK(0x1); MOVEBLOCK(0x2); MOVEBLOCK(0x3);
+        MOVEBLOCK(0x4); MOVEBLOCK(0x5); MOVEBLOCK(0x6); MOVEBLOCK(0x7);
+        MOVEBLOCK(0x8); MOVEBLOCK(0x9); MOVEBLOCK(0xA); MOVEBLOCK(0xB);
+        MOVEBLOCK(0xC); MOVEBLOCK(0xD); MOVEBLOCK(0xE); MOVEBLOCK(0xF);
+    }
+}
+
 __attribute__((optimize("unroll-all-loops")))
 void calcScaleTables(int32_t smX, int32_t smY, int32_t xOff, int32_t yOff)
 {
@@ -150,6 +172,7 @@ void setPalette()
         }
     }
     setPaletteEntry(0, 0, 0, 0);
+    setPaletteEntry(1, 0, 0, 0);
 }
 
 uint8_t keyState[128] = {0};
@@ -229,9 +252,12 @@ void bubbleUniverse()
     int32_t yOffset = 0;
     uint8_t debug = 0;
 
+    clearBuffer(backBuffer, 0, SCREENBUFFERSIZE/4);
+
     while (1)
     {
-        clearBuffer(backBuffer, 0, SCREENBUFFERSIZE/4);
+        if (debug) setPaletteEntry(0, 32, 32, 0);
+        moveScreenBuffer();
         if (debug) setPaletteEntry(0, 0, 32, 32);
 
         int32_t ang1Start = animTime & (SINTABLEENTRIES - 1);
@@ -309,9 +335,6 @@ void bubbleUniverse()
 
         if (debug) setPaletteEntry(0, 0, 0, 0);
         vsync();
-        if (debug) setPaletteEntry(0, 63, 0, 0);
-        copyBuffer(backBuffer, screenBuffer, SCREENBUFFERSIZE/4);
-        if (debug) setPaletteEntry(0, 0, 63, 0);
     }
 }
 

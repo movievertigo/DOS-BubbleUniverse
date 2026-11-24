@@ -132,9 +132,9 @@ void calcScaleTables(int32_t smX, int32_t smY, int32_t xOff, int32_t yOff)
 
     int64_t val = (int64_t)(xOff - smX * (SINTABLEMAXVAL * 2 - start)) << (32 - SINTABLEPOWER);
     int64_t step = (int64_t)smX << (32 - SINTABLEPOWER);
-    for (int i = start; i < end; ++i)
+    for (int32_t* ptr = scaleXTable + start; ptr < scaleXTable + end; ++ptr)
     {
-        scaleXTable[i] = val >> 32;
+        *ptr = val >> 32;
         val += step;
     }
 
@@ -150,9 +150,9 @@ void calcScaleTables(int32_t smX, int32_t smY, int32_t xOff, int32_t yOff)
 
     val = (int64_t)(yOff - smY * (SINTABLEMAXVAL * 2 - start)) << (32 - SINTABLEPOWER);
     step = (int64_t)smY << (32 - SINTABLEPOWER);
-    for (int i = start; i < end; ++i)
+    for (int32_t* ptr = scaleYTable + start; ptr < scaleYTable + end; ++ptr)
     {
-        scaleYTable[i] = lineAddresses[val >> 32];
+        *ptr = lineAddresses[val >> 32];
         val += step;
     }
 

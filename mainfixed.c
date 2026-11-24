@@ -275,11 +275,10 @@ void bubbleUniverse()
         for (int i = 0; i < CURVECOUNT; i += CURVESTEP)
         {
             uint32_t col = i & 0xF0;
-            int32_t x = 0, y = 0;
-            int32_t* sinAng1Start = sinTable + ang1Start;
-            int32_t* sinAng2Start = sinTable + ang2Start; 
-            for (int jBase = 0; jBase < (ITERATIONS >> 4); ++jBase)
-            {
+            uint32_t x = 0, y = 0;
+            uint32_t* sinAng1Start = sinTable + ang1Start;
+            uint32_t* sinAng2Start = sinTable + ang2Start;
+            uint32_t j = ITERATIONS >> 4;
 
 #define JLOOP(PIXA,PIXB) \
                 "movl (%[sinAng2Start], %[y]), %[y] \n" \
@@ -291,24 +290,26 @@ void bubbleUniverse()
                 "addl %c[scaleYTable](%[y]), %%eax \n" \
                 PIXB
 
+#define DECJ    "decl %[j] \n"
 #define PIX     "movb %b[col], (%%eax) \n"
-#define INCCOL  "incl %[col] \n"
+#define INCCOL  "leal 1(%[col]), %[col] \n"
 
 #define JLOOP1  JLOOP("","")
 #define JLOOP2  JLOOP(PIX,"")
-#define JLOOP3  JLOOP(PIX INCCOL,"")
-#define JLOOP4  JLOOP(PIX,PIX)
-#define JLOOP5  JLOOP(PIX,PIX INCCOL)
+#define JLOOP3  JLOOP(PIX,DECJ PIX INCCOL)
 
-                asm volatile (
-                    JLOOP1 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP5
+            asm volatile (
+                "1: \n"
 
-                    : [x]"+r"(x), [y]"+r"(y), [col]"+q"(col)
-                    : [sinAng1Start]"r"(sinAng1Start), [sinAng2Start]"r"(sinAng2Start),
-                      [scaleXTable]"i"(scaleXTable), [scaleYTable]"i"(scaleYTable)
-                    : "memory", "cc", "eax"
-                );
-            }
+                JLOOP1 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP2 JLOOP3
+
+                "jnz 1b \n"
+
+                : [x]"+c"(x), [y]"+d"(y), [col]"+b"(col), [j]"+r"(j)
+                : [sinAng1Start]"S"(sinAng1Start), [sinAng2Start]"D"(sinAng2Start),
+                  [scaleXTable]"i"(scaleXTable), [scaleYTable]"i"(scaleYTable)
+                : "memory", "cc", "eax"
+            );
 
             ang1Start = (ang1Start + ANG1INC) & (SINTABLEENTRIES - 1);
             ang2Start = (ang2Start + ANG2INC) & (SINTABLEENTRIES - 1);
